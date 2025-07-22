@@ -1,0 +1,10 @@
+cd Data_2023_Workshop                    # 進入程式碼資料夾
+git init                         # 初始化 Git 倉庫
+git add .                        # 加入所有檔案到 Git 暫存區
+git commit -m "Initial commit"   # 提交訊息
+git branch -M main               # 設定主分支為 main
+
+# 把遠端 GitHub 儲存庫加入為 origin，URL 可從 GitHub repo 複製
+git remote add origin https://github.com/你的帳號/你的repo.git
+
+git push -u origin main          # 上傳到 GitHub
