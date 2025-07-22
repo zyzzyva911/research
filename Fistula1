@@ -1,0 +1,126 @@
+## install.packages("readxl")
+library("readxl")
+
+NP_long<-read_excel("necrotizing_pancreatitis.xlsx",sheet = "fistula1")
+NP_long
+
+## Define the treatments in t
+NP_long$txt<-as.factor(NP_long$t)
+
+## Rename all levels of txt
+levels(NP_long$txt) <- c("DESU", "DON", "DSSU", "DESU+UN", "EESU")
+
+## Call package netmeta
+library(netmeta)
+
+## Transform data from long arm-based format to contrast-based format
+## Argument 'sm' has to be used for odds ratio as summary measure; by
+## default the risk ratio is used in the metabin function called
+## internally.
+NP_wide <- pairwise(treat=txt, event=r, n=n,
+                     studlab=id, data=NP_long, sm="RR")
+NP_wide
+
+## Define order of treatments in printouts and forest plots
+txts <- c("DESU", "DON", "DSSU", "DESU+UN", "EESU")
+
+## Conduct network meta-analysis
+net1 <- netmeta(NP_wide,reference.group = "DON",
+                sm = "RR", comb.fixed = FALSE, comb.random = TRUE,
+                backtransf=TRUE,seq = txts,nchar.trts = 38)
+summary(net1)
+
+
+## network graph. Note that in R we need to run NMA before we produce network plot
+netgraph(net1)
+
+## network graphs looking like those in Stata
+n.subj<-NP_long$n
+n.txts<-NP_long$txt
+netsize<-data.frame(n.txts, n.subj)
+pointsize<-aggregate(n.subj ~ n.txts, data=netsize, FUN=sum)
+
+netgraph(net1, points=TRUE, multiarm=FALSE, plastic=FALSE, 
+         scale=1.1, cex.points=pointsize$n.subj/20, cex=1.0,
+         number.of.studies=TRUE, thickness="number.of.studies", 
+         pos.number.of.studies=0.5, col.number.of.studies="darkblue", 
+         bg.number.of.studies=FALSE,offset=0.05, cex.number.of.studies=1.2, 
+         col="black", col.points="royalblue", 
+         seq=as.vector(pointsize$n.txts))
+		 
+## create forest plot with Placebo as the reference
+forest(net1)
+
+## create forest plot with Cryotherapy as the reference
+forest(net1, ref = "DON")
+
+## Create forest plot according to effect size
+forest(net1, reference.group = "DON",sortvar = TE,xlim=c(0.01,5),
+       at=c(0.01,0.1,0.5,1,5),
+       col.square = "blue",smlab = "Post-Procedural fistula formation \n (Others vs. DON)",
+       rightcols=c("effect","ci","Pscore"),
+       just.addcols="right",
+       label.left=("favor other interventions"),
+       label.right=("favor DON")
+)
+
+## Visualising direct and indirect evidence
+cm <- netcontrib(net1, methods="r")
+cm
+
+## treatment ranking
+ranking<-netrank(net1, small.values = "good")
+ranking
+
+## add forest plot with p score at the right cols
+forest(net1, reference.group = "EON",sortvar = TE,xlim=c(0.01,5),
+       at=c(0.01,0.1,0.5,1,5),
+       col.square = "royalblue",smlab = "Post-Procedural Organ Failure \n (Others vs. EON)",
+       rightcols=c("effect","ci","Pscore"),
+       just.addcols="right",
+       label.left=("favor other interventions"),
+       label.right=("favor EON")
+                  
+       )
+## Create league table
+## League table for random effects model with
+## - network estimates in lower triangle
+## - direct estimates in upper triangle
+## - change order of treatments according to treatment ranking
+netleague <- netleague(net1, comb.fixed = FALSE, 
+                       bracket = "(", separator = " to ", 
+                       digits=2, seq = netrank(net1, small.values = "good"))
+write.csv(netleague$random, "netleague.organfailure2.csv")
+
+
+## Create a new dataset ranking.r
+ranking.r<-as.data.frame(ranking$Pscore.random)
+ranking.r
+
+## Change the column name from ranking$Pscore.random to pscore
+names(ranking.r)<-"pscore"
+ranking.r
+
+## Use rowname to create a new variable trtnames
+ranking.r$trtnames<-rownames(ranking.r)
+ranking.r
+
+## Order the rows according to their p-scores
+ranking.order<-ranking.r[order(ranking.r$pscore, decreasing = TRUE),]
+
+## Comparison-adjusted Funnel Plots
+funnel <- funnel(net1,order = ranking.order$trtnames,pch = 19,
+                 legend=FALSE,linreg = TRUE,studlab = TRUE,cex.studlab = 0.7)
+
+## Design-by-treatment interaction model
+decomp.design(net1)
+
+## node-splitting model
+netsplit(net1)
+
+# pdf(file="F:/nodeplit.pdf",width=8,height=40,paper='special') 
+
+forest(netsplit(net1), show = "all") ## there is not loop, so we need show="all"
+
+# dev.off()
+
